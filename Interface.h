@@ -25,6 +25,7 @@ int displayMenu(Disk* allDisks){
 	}
 	for (int j = 0; j < i; j++){
 		wcout << j + 1 << ". " << allDisks[j].Letter << endl;
+		ShowDiskInformation(allDisks[j]);
 	}
 
 	return i;

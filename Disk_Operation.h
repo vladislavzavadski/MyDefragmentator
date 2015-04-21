@@ -30,8 +30,8 @@ void ShowDiskInformation(Disk drive){
 		(LPOVERLAPPED)NULL))
 	{
 
-		printf("%lli", pdg.PartitionLength);
-
+		printf("%lli bytes\n", pdg.PartitionLength);
+		
 	}
 	else{
 		wcout << "Can not show information about disk " << drive.Letter << endl<<GetLastError();
