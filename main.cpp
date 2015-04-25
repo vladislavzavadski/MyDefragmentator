@@ -7,7 +7,7 @@ using namespace std;
 
 int main(){
 	int diskCount;
-	VOLUME_BITMAP_BUFFER VBB;
+	PVOLUME_BITMAP_BUFFER VBB;
 	DWORD bye;
 	FILE_INFO *FI;
 	char choice2;
@@ -23,6 +23,7 @@ int main(){
 	}
 	while (1){
 		diskCount = displayMenu(allDisks);
+		//Get_Volume_BitMap(allDisks[1]);
 		wcout << diskCount + 1 << ". " << "Defragmentate File" << endl;
 		wcout << diskCount + 2 << ". " << "Refresh" << endl;
 		wcout << diskCount + 3 << ". " << "Exit" << endl;
@@ -33,16 +34,20 @@ int main(){
 			wcout << "Select the drive where the file resides\n";
 			diskCount = displayMenu(allDisks);
 			choice2 = _getch();
-			if (choice - '0' > diskCount||choice<'1'){
+			if (choice2 - '0' > diskCount||choice2<'1'){
 				wcout << "Error of choice" << endl;
 				system("pause");
 				continue;
 			}
 			else{
-				VBB = Get_Volume_BitMap(allDisks[choice - '0' - 1]);
+				VBB = Get_Volume_BitMap(allDisks[choice2 - '0' - 1]);
 				wcout << "Enter Full Path to File" << endl;
-				wcin >> pathToFile;
-				FI = Get_RETRIEVAL_POINTERS_BUFFER_Of_File(pathToFile);
+				FI = Get_RETRIEVAL_POINTERS_BUFFER_Of_File(L"C:\\Users\\Владислав\\Downloads\\jdk-8u31-windows-x64.exe");
+				if (!FI){
+					cout << "Error with file opening" << endl;
+					continue;
+				}
+				DefragmentateFile(*FI, VBB, allDisks[choice2 - '0' - 1]);
 			}
 			wcout << "Enter full path to file: ";
 			wcin >> pathToFile;
