@@ -63,6 +63,41 @@ unsigned long long int GetFreeClasters(BYTE ik){
 	return count;
 }
 
+void showVolumeMap(PNTFS_VOLUME_DATA_BUFFER info){
+	system("CLS");
+	printf("1. Volume Serial Number %lli\n", info->VolumeSerialNumber);
+	printf("2. Number of sectors %lli\n", info->NumberSectors);
+	printf("3. Total number of clusters %lli\n", info->TotalClusters);
+	printf("4. Number of free clusters %lli\n", info->FreeClusters);
+	printf("5. Number of reserved clusters %lli\n", info->TotalReserved);
+	printf("6. Number of bytes in sector %d\n", info->BytesPerSector);
+	printf("7. Number of bytes in cluster %d\n", info->BytesPerCluster);
+	printf("8. Number of bytes in a file record segment %d\n", info->BytesPerFileRecordSegment);
+	printf("9. Number of clusters in a file record segment %d\n", info->ClustersPerFileRecordSegment);
+	printf("10. Length of master file table %lli bytes\n", info->MftValidDataLength);
+	printf("11. The starting logical cluster number of the master file table %lli\n", info->MftStartLcn);
+	printf("12. The starting logical cluster number of the master file table mirror. %lli\n", info->Mft2StartLcn);
+	printf("13. The starting logical cluster number of the master file table zone. %lli\n", info->MftZoneEnd);
+	printf("14. The ending logical cluster number of the master file table zone. %lli\n", info->MftZoneEnd);
+	system("pause");
+}
+
+void readVolumeMap(Disk drive){
+	PNTFS_VOLUME_DATA_BUFFER info;
+	DWORD cbWritten;
+	info = (PNTFS_VOLUME_DATA_BUFFER)malloc(sizeof(NTFS_VOLUME_DATA_BUFFER));
+	if (!DeviceIoControl(drive.hDisk, FSCTL_GET_NTFS_VOLUME_DATA, NULL, 0,
+		info, sizeof(NTFS_VOLUME_DATA_BUFFER), &cbWritten, NULL)){
+		system("CLS");
+		cout << "Error Number " << GetLastError() << endl;
+		system("pause");
+		return;
+	}
+	else{
+		showVolumeMap(info);
+	}
+}
+
 PVOLUME_BITMAP_BUFFER Get_Volume_BitMap(Disk drive){
 	STARTING_LCN_INPUT_BUFFER InBuf;
 	VOLUME_BITMAP_BUFFER OutBuf;
@@ -86,21 +121,6 @@ PVOLUME_BITMAP_BUFFER Get_Volume_BitMap(Disk drive){
 		if (ret){
 			printf("%lli\n", pOutBuf->StartingLcn);
 			printf("%lli\n", pOutBuf->BitmapSize);
-			
-
-			/*unsigned long long int count = 0, count1 = 0;
-			for (unsigned long long int i = 0; i < 218564351; i++){
-				if (pOutBuf->Buffer[i] != 0){
-					count += GetBusyClasters(pOutBuf->Buffer[i]);
-				}
-				else
-					count1 += GetFreeClasters(pOutBuf->Buffer[i]);
-				cout << "hello world" << endl;
-			}
-
-			cout << count<<endl<<count1;
-			int i = 0;
-			i = 0;*/
 			return pOutBuf;
 		}
 
@@ -111,13 +131,5 @@ PVOLUME_BITMAP_BUFFER Get_Volume_BitMap(Disk drive){
 		}
 		return pOutBuf;
 	}
-	/*ret = DeviceIoControl(drive.hDisk, FSCTL_GET_NTFS_VOLUME_DATA, NULL, 0, &NtfsData, sizeof(NTFS_VOLUME_DATA_BUFFER), &pBytes, NULL);
-	int i;
-	i = 0;
-	if (!ret){
-		cout << GetLastError();
-		int i;
-		i = 0;
-	}
-	return *pOutBuf;*/
+
 }

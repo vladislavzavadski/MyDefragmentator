@@ -23,16 +23,17 @@ int main(){
 	}
 	while (1){
 		diskCount = displayMenu(allDisks);
-		//Get_Volume_BitMap(allDisks[1]);
 		wcout << diskCount + 1 << ". " << "Defragmentate File" << endl;
 		wcout << diskCount + 2 << ". " << "Refresh" << endl;
 		wcout << diskCount + 3 << ". " << "Exit" << endl;
+		fflush(stdin);
 		choice = _getch();
 
 		if (choice == diskCount + 1 + '0'){
 			system("CLS");
 			wcout << "Select the drive where the file resides\n";
 			diskCount = displayMenu(allDisks);
+			fflush(stdin);
 			choice2 = _getch();
 			if (choice2 - '0' > diskCount||choice2<'1'){
 				wcout << "Error of choice" << endl;
@@ -48,6 +49,7 @@ int main(){
 					continue;
 				}
 				DefragmentateFile(*FI, VBB, allDisks[choice2 - '0' - 1]);
+				continue;
 			}
 			wcout << "Enter full path to file: ";
 			wcin >> pathToFile;
@@ -67,6 +69,16 @@ int main(){
 		if (choice < '1'){
 			system("CLS");
 			continue;
+		}
+		system("CLS");
+		printf("1. Defragment\n2. Show Info");
+		fflush(stdin);
+		choice2 = _getch();
+		if (choice2 == '1'){
+
+		}
+		if(choice2 == '2'){
+			readVolumeMap(allDisks[choice - '0' - 1]);
 		}
 		
 	}
