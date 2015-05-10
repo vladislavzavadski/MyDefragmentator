@@ -2,12 +2,13 @@
 #include <iostream>
 using namespace std;
 
-typedef struct FILE_INFO{
+typedef struct {
 	HANDLE hFile;
 	PRETRIEVAL_POINTERS_BUFFER buffer;
-};
+}FILE_INFO;
 
-FILE_INFO* Get_RETRIEVAL_POINTERS_BUFFER_Of_File(WCHAR* pathToFile){
+
+FILE_INFO* checkFileClusters(const wchar_t* pathToFile){
 	FILE_INFO *temp;
 	STARTING_VCN_INPUT_BUFFER SVIB;
 	RETRIEVAL_POINTERS_BUFFER rpb;
@@ -17,6 +18,7 @@ FILE_INFO* Get_RETRIEVAL_POINTERS_BUFFER_Of_File(WCHAR* pathToFile){
 	temp = (FILE_INFO*)malloc(sizeof(FILE_INFO));
 	temp->hFile = CreateFile(pathToFile, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
 	if (temp->hFile == INVALID_HANDLE_VALUE){
+		cout << endl << GetLastError();
 		return NULL;
 	}
 	SVIB.StartingVcn.QuadPart = 0;
@@ -71,32 +73,32 @@ LARGE_INTEGER GetStartLcn(unsigned long long int clustersLength, PVOLUME_BITMAP_
 	return StartLcn;
 }
 
-unsigned long long int GetFullClustersCount(FILE_INFO file){
-	unsigned long long int fullClustersCount = file.buffer->Extents[0].NextVcn.QuadPart-file.buffer->StartingVcn.QuadPart;
-	for (unsigned long long int i = 1; i < file.buffer->ExtentCount; i++){
-		fullClustersCount += file.buffer->Extents[i].NextVcn.QuadPart - file.buffer->Extents[i - 1].NextVcn.QuadPart;
+unsigned long long int GetFullClustersCount(PRETRIEVAL_POINTERS_BUFFER file){
+	unsigned long long int fullClustersCount = file->Extents[0].NextVcn.QuadPart - file->StartingVcn.QuadPart;
+	for (unsigned long long int i = 1; i < file->ExtentCount; i++){
+		fullClustersCount += file->Extents[i].NextVcn.QuadPart - file->Extents[i - 1].NextVcn.QuadPart;
 	}
 	return fullClustersCount;
 }
 
-bool DefragmentateFile(FILE_INFO file, PVOLUME_BITMAP_BUFFER vbb, Disk drive){
+bool DefragmentateFile(HANDLE hFile, RETRIEVAL_POINTERS_BUFFER buffer, PVOLUME_BITMAP_BUFFER vbb, Disk drive){
 	MOVE_FILE_DATA movFileStruct;
 	unsigned long long int prevVcn;
 	unsigned long long int fullClustersCount;
 	LARGE_INTEGER lcn;
 	DWORD pBytes = 0;
-	if (file.buffer->ExtentCount == 1){
+	if (buffer.ExtentCount == 1||buffer.ExtentCount==0){
 		return true;
 	}
-	movFileStruct.FileHandle = file.hFile;
-	movFileStruct.StartingVcn = file.buffer->StartingVcn;
-	fullClustersCount = GetFullClustersCount(file);
+	movFileStruct.FileHandle = hFile;
+	movFileStruct.StartingVcn = buffer.StartingVcn;
+	fullClustersCount = GetFullClustersCount(&buffer);
 	movFileStruct.StartingLcn = GetStartLcn(fullClustersCount, vbb);
-	movFileStruct.ClusterCount = file.buffer->Extents[0].NextVcn.QuadPart - file.buffer->StartingVcn.QuadPart;
+	movFileStruct.ClusterCount = buffer.Extents[0].NextVcn.QuadPart - buffer.StartingVcn.QuadPart;
 	wcout << drive.Letter;
-	prevVcn = file.buffer->StartingVcn.QuadPart;
-	for (unsigned long long int i = 0; i < file.buffer->ExtentCount; i++){
-		movFileStruct.ClusterCount = file.buffer->Extents[i].NextVcn.QuadPart - prevVcn;
+	prevVcn = buffer.StartingVcn.QuadPart;
+	for (unsigned long long int i = 0; i < buffer.ExtentCount; i++){
+		movFileStruct.ClusterCount = buffer.Extents[i].NextVcn.QuadPart - prevVcn;
 		bool ret = DeviceIoControl(drive.hDisk, FSCTL_MOVE_FILE, &movFileStruct, sizeof(MOVE_FILE_DATA), NULL, 0, &pBytes, NULL);
 		if (!ret){
 			if (GetLastError() == ERROR_ACCESS_DENIED){
@@ -112,9 +114,49 @@ bool DefragmentateFile(FILE_INFO file, PVOLUME_BITMAP_BUFFER vbb, Disk drive){
 			cout << "yes";
 			movFileStruct.StartingLcn.QuadPart += movFileStruct.ClusterCount;
 			movFileStruct.StartingVcn.QuadPart += movFileStruct.ClusterCount;
-			prevVcn = file.buffer->Extents[i].NextVcn.QuadPart;
+			prevVcn = buffer.Extents[i].NextVcn.QuadPart;
 				
 		}
 	}
 	return true;
+}
+
+bool searchFileByItCluster(Disk drive){
+	LOOKUP_STREAM_FROM_CLUSTER_INPUT inpStruct;
+	LOOKUP_STREAM_FROM_CLUSTER_ENTRY str;
+	LOOKUP_STREAM_FROM_CLUSTER_OUTPUT str1;
+	PNTFS_VOLUME_DATA_BUFFER info;
+	PLARGE_INTEGER INT = (PLARGE_INTEGER)malloc(sizeof(LARGE_INTEGER));
+	DWORD cbWritten;
+	int size = (sizeof(DWORD) * 2 + sizeof(LARGE_INTEGER));
+	inpStruct.NumberOfClusters = 1;
+	inpStruct.Cluster[0].QuadPart = 26585528;
+	info = (PNTFS_VOLUME_DATA_BUFFER)malloc(sizeof(NTFS_VOLUME_DATA_BUFFER));
+	bool ret = DeviceIoControl(drive.hDisk, FSCTL_LOOKUP_STREAM_FROM_CLUSTER, &inpStruct, (sizeof(DWORD) * 2 + sizeof(LARGE_INTEGER)), &str1, sizeof(LOOKUP_STREAM_FROM_CLUSTER_OUTPUT), &cbWritten, NULL);
+	if (!ret){
+		cout <<"Error: "<< GetLastError()<<endl<<sizeof(LOOKUP_STREAM_FROM_CLUSTER_INPUT);
+		for (int i = 0; i < inpStruct.NumberOfClusters; i++){
+			printf("%lli\n", inpStruct.Cluster[i]);
+		}
+		
+
+		int i = 0;
+	}
+	return false;
+}
+
+bool enumUSNData(Disk drive){
+	MFT_ENUM_DATA_V0 inpStruct;
+	USN_RECORD_V2 outpStruct;
+	DWORD cbWritten;
+	inpStruct.StartFileReferenceNumber = 0;
+	inpStruct.LowUsn = 100;
+	inpStruct.HighUsn = 2000;
+	if (!DeviceIoControl(drive.hDisk, FSCTL_ENUM_USN_DATA, &inpStruct, sizeof(MFT_ENUM_DATA_V0), &outpStruct, sizeof(USN_RECORD_V2), &cbWritten, NULL)){
+		cout << "Error: " << GetLastError() << endl;
+		system("pause");
+		return false;
+	}
+	return true;
+
 }

@@ -2,12 +2,13 @@
 #include "Interface.h"
 #include <conio.h>
 #include "CheckUser.h"
-#include "AnalizeFile.h"
+//#include "AnalizeFile.h"
 using namespace std;
 
 int main(){
 	int diskCount;
 	PVOLUME_BITMAP_BUFFER VBB;
+	wstring path;
 	DWORD bye;
 	FILE_INFO *FI;
 	char choice2;
@@ -23,6 +24,8 @@ int main(){
 	}
 	while (1){
 		diskCount = displayMenu(allDisks);
+//		searchFileByItCluster(allDisks[1]);
+		//doSomething(allDisks[1]);
 		wcout << diskCount + 1 << ". " << "Defragmentate File" << endl;
 		wcout << diskCount + 2 << ". " << "Refresh" << endl;
 		wcout << diskCount + 3 << ". " << "Exit" << endl;
@@ -43,12 +46,12 @@ int main(){
 			else{
 				VBB = Get_Volume_BitMap(allDisks[choice2 - '0' - 1]);
 				wcout << "Enter Full Path to File" << endl;
-				FI = Get_RETRIEVAL_POINTERS_BUFFER_Of_File(L"C:\\Users\\Владислав\\Downloads\\jdk-8u31-windows-x64.exe");
+				FI = checkFileClusters(L"C:\\MainQueueOnline1.que");
 				if (!FI){
 					cout << "Error with file opening" << endl;
 					continue;
 				}
-				DefragmentateFile(*FI, VBB, allDisks[choice2 - '0' - 1]);
+				DefragmentateFile(FI->hFile, *FI->buffer, VBB, allDisks[choice2 - '0' - 1]);
 				continue;
 			}
 			wcout << "Enter full path to file: ";
@@ -75,10 +78,30 @@ int main(){
 		fflush(stdin);
 		choice2 = _getch();
 		if (choice2 == '1'){
-
+			if (!beginThread(allDisks[choice - '0' - 1])){
+				cout << "Undefined Error" << endl;
+				system("pause");
+				return 0;
+			}
+			while (1){
+			VBB = Get_Volume_BitMap(allDisks[choice - '0' - 1]);
+			path = nextFile();
+			if (path == L"")
+				break;
+			FI = checkFileClusters(path.c_str());
+			if (!FI){
+				cout << "Error with file opening" << endl;
+				system("pause");
+				break;
+			}
+			DefragmentateFile(FI->hFile, *FI->buffer, VBB, allDisks[choice2 - '0' - 1]);
+			free(VBB);
+			free(FI);
+			}
 		}
 		if(choice2 == '2'){
 			readVolumeMap(allDisks[choice - '0' - 1]);
+			//enumUSNData(allDisks[1]);
 		}
 		
 	}
