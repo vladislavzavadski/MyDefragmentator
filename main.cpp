@@ -2,12 +2,16 @@
 #include "Interface.h"
 #include <conio.h>
 #include "CheckUser.h"
+#include <stack>
+//#include "Sealed.h"
+#define NO_SUITABLE_AREA -1
 //#include "AnalizeFile.h"
 using namespace std;
 
 int main(){
 	int diskCount;
 	PVOLUME_BITMAP_BUFFER VBB;
+	stack<wstring> st;
 	wstring path;
 	DWORD bye;
 	FILE_INFO *FI;
@@ -24,8 +28,6 @@ int main(){
 	}
 	while (1){
 		diskCount = displayMenu(allDisks);
-//		searchFileByItCluster(allDisks[1]);
-		//doSomething(allDisks[1]);
 		wcout << diskCount + 1 << ". " << "Defragmentate File" << endl;
 		wcout << diskCount + 2 << ". " << "Refresh" << endl;
 		wcout << diskCount + 3 << ". " << "Exit" << endl;
@@ -51,7 +53,7 @@ int main(){
 					cout << "Error with file opening" << endl;
 					continue;
 				}
-				DefragmentateFile(FI->hFile, *FI->buffer, VBB, allDisks[choice2 - '0' - 1]);
+				DefragmentateFile(FI->hFile, FI->buffer, VBB, allDisks[choice2 - '0' - 1]);
 				continue;
 			}
 			wcout << "Enter full path to file: ";
@@ -78,6 +80,8 @@ int main(){
 		fflush(stdin);
 		choice2 = _getch();
 		if (choice2 == '1'){
+//			AnalyzeDisk(allDisks[choice - '0' - 1]);
+			SealedFilesOnDisk(allDisks[choice - '0' - 1], Get_Volume_BitMap(allDisks[choice-'0'-1]));
 			if (!beginThread(allDisks[choice - '0' - 1])){
 				cout << "Undefined Error" << endl;
 				system("pause");
@@ -94,10 +98,16 @@ int main(){
 				system("pause");
 				break;
 			}
-			DefragmentateFile(FI->hFile, *FI->buffer, VBB, allDisks[choice2 - '0' - 1]);
+			if (FI->buffer->ExtentCount != 1 && FI->buffer->ExtentCount != 0){
+				if (NO_SUITABLE_AREA == DefragmentateFile(FI->hFile, FI->buffer, VBB, allDisks[choice - '0' - 1])){
+					st.push(path);
+				}
+			}
 			free(VBB);
+			CloseHandle(FI->hFile);
 			free(FI);
 			}
+			AnalyzeDisk(allDisks[choice - '0' - 1]);
 		}
 		if(choice2 == '2'){
 			readVolumeMap(allDisks[choice - '0' - 1]);

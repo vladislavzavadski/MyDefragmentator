@@ -7,6 +7,21 @@ typedef struct {
 	PRETRIEVAL_POINTERS_BUFFER buffer;
 }FILE_INFO;
 
+unsigned long long int StartLcn1;
+unsigned long long int FullClustersCount1;
+unsigned long long int dlinaOblasti;
+
+unsigned long long int getStartLcn1(){
+	return StartLcn1;
+}
+
+unsigned long long int getdlinaOblasti(){
+	return dlinaOblasti;
+}
+
+unsigned long long int getFullClustersCount1(){
+	return FullClustersCount1;
+}
 
 FILE_INFO* checkFileClusters(const wchar_t* pathToFile){
 	FILE_INFO *temp;
@@ -14,6 +29,7 @@ FILE_INFO* checkFileClusters(const wchar_t* pathToFile){
 	RETRIEVAL_POINTERS_BUFFER rpb;
 	PRETRIEVAL_POINTERS_BUFFER RPB = &rpb;
 	_int64 pOutSize = 0;
+	int errorCode;
 	DWORD bytes;
 	temp = (FILE_INFO*)malloc(sizeof(FILE_INFO));
 	temp->hFile = CreateFile(pathToFile, GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
@@ -34,11 +50,10 @@ FILE_INFO* checkFileClusters(const wchar_t* pathToFile){
 			return NULL;
 		}
 
-
 	}
-
+	unsigned long long int i = RPB->Extents[1].NextVcn.QuadPart;
 		temp->buffer = RPB;
-
+		i = temp->buffer->Extents[1].NextVcn.QuadPart;
 	return temp;
 }
 
@@ -46,6 +61,8 @@ FILE_INFO* checkFileClusters(const wchar_t* pathToFile){
 LARGE_INTEGER GetStartLcn(unsigned long long int clustersLength, PVOLUME_BITMAP_BUFFER vbb){
 	LARGE_INTEGER StartLcn, EndLcn;
 	unsigned long long int count = 0;
+	unsigned long long int prevCount = 0;
+	unsigned long long int startMaxLcn = 0;
 	bool chainIsSearched = false;
 	StartLcn.QuadPart = 0;
 	EndLcn.QuadPart = 0;
@@ -60,6 +77,10 @@ LARGE_INTEGER GetStartLcn(unsigned long long int clustersLength, PVOLUME_BITMAP_
 		}
 		if (vbb->Buffer[i] != 0){
 			chainIsSearched = false;
+			if (count > prevCount){
+				startMaxLcn = StartLcn.QuadPart;
+				prevCount = count;
+			}
 			count = 0;
 		}
 
@@ -69,36 +90,63 @@ LARGE_INTEGER GetStartLcn(unsigned long long int clustersLength, PVOLUME_BITMAP_
 		}
 
 	}
+	if (count > prevCount){
+		prevCount = count;
+		StartLcn1 = StartLcn.QuadPart;
+
+	}
+	else{
+		StartLcn1 = startMaxLcn;
+	}
+	if (count != clustersLength){
+		StartLcn.QuadPart = -1;		
+		FullClustersCount1 = clustersLength;
+		dlinaOblasti = prevCount;
+		return StartLcn;
+	}
 	StartLcn.QuadPart *= 8;
 	return StartLcn;
 }
 
 unsigned long long int GetFullClustersCount(PRETRIEVAL_POINTERS_BUFFER file){
 	unsigned long long int fullClustersCount = file->Extents[0].NextVcn.QuadPart - file->StartingVcn.QuadPart;
-	for (unsigned long long int i = 1; i < file->ExtentCount; i++){
-		fullClustersCount += file->Extents[i].NextVcn.QuadPart - file->Extents[i - 1].NextVcn.QuadPart;
+	for (unsigned long long int i = 0; i < file->ExtentCount-1; i++){
+		fullClustersCount += -file->Extents[i].NextVcn.QuadPart + file->Extents[i + 1].NextVcn.QuadPart;
 	}
 	return fullClustersCount;
 }
 
-bool DefragmentateFile(HANDLE hFile, RETRIEVAL_POINTERS_BUFFER buffer, PVOLUME_BITMAP_BUFFER vbb, Disk drive){
+
+int DefragmentateFile(HANDLE hFile, PRETRIEVAL_POINTERS_BUFFER buffer, PVOLUME_BITMAP_BUFFER vbb, Disk drive){
 	MOVE_FILE_DATA movFileStruct;
 	unsigned long long int prevVcn;
 	unsigned long long int fullClustersCount;
 	LARGE_INTEGER lcn;
 	DWORD pBytes = 0;
-	if (buffer.ExtentCount == 1||buffer.ExtentCount==0){
-		return true;
-	}
+
 	movFileStruct.FileHandle = hFile;
-	movFileStruct.StartingVcn = buffer.StartingVcn;
-	fullClustersCount = GetFullClustersCount(&buffer);
+	movFileStruct.StartingVcn = buffer->StartingVcn;
+	unsigned long long int i = buffer->Extents[1].NextVcn.QuadPart;
+	fullClustersCount = GetFullClustersCount(buffer);
 	movFileStruct.StartingLcn = GetStartLcn(fullClustersCount, vbb);
-	movFileStruct.ClusterCount = buffer.Extents[0].NextVcn.QuadPart - buffer.StartingVcn.QuadPart;
+	//movFileStruct.StartingLcn.QuadPart = 3908344;
+
+	/*unsigned long long int l=vbb->Buffer[206072];
+	l = vbb->Buffer[25759];
+	for (unsigned long long int i = 7396; i < 56358; i++){
+		if (vbb->Buffer[i] != 0){
+			cout << endl << vbb->Buffer[i];
+		}
+	}*/
+	if (movFileStruct.StartingLcn.QuadPart == -1){
+
+		return -1;
+	}
+	movFileStruct.ClusterCount = buffer->Extents[0].NextVcn.QuadPart - buffer->StartingVcn.QuadPart;
 	wcout << drive.Letter;
-	prevVcn = buffer.StartingVcn.QuadPart;
-	for (unsigned long long int i = 0; i < buffer.ExtentCount; i++){
-		movFileStruct.ClusterCount = buffer.Extents[i].NextVcn.QuadPart - prevVcn;
+	prevVcn = buffer->StartingVcn.QuadPart;
+	for (unsigned long long int i = 0; i < buffer->ExtentCount; i++){
+		movFileStruct.ClusterCount = buffer->Extents[i].NextVcn.QuadPart - prevVcn;
 		bool ret = DeviceIoControl(drive.hDisk, FSCTL_MOVE_FILE, &movFileStruct, sizeof(MOVE_FILE_DATA), NULL, 0, &pBytes, NULL);
 		if (!ret){
 			if (GetLastError() == ERROR_ACCESS_DENIED){
@@ -114,7 +162,7 @@ bool DefragmentateFile(HANDLE hFile, RETRIEVAL_POINTERS_BUFFER buffer, PVOLUME_B
 			cout << "yes";
 			movFileStruct.StartingLcn.QuadPart += movFileStruct.ClusterCount;
 			movFileStruct.StartingVcn.QuadPart += movFileStruct.ClusterCount;
-			prevVcn = buffer.Extents[i].NextVcn.QuadPart;
+			prevVcn = buffer->Extents[i].NextVcn.QuadPart;
 				
 		}
 	}

@@ -1,13 +1,15 @@
 ﻿#include <windows.h>
 #include <string>
 #include <iostream>
+#include <cvt\wstring>
 #include <string.h>
 #include <time.h>
 #include "AnalizeFile.h"
 #define BUFFER_SIZE (1024*1024)
 #define SIZE 64
 using namespace std;
-
+using namespace stdext;
+using namespace cvt;
 
 USN maxusn;
 int count11 = 0;
@@ -138,7 +140,7 @@ void readVolumeMap(Disk drive){
 
 	info = (PNTFS_VOLUME_DATA_BUFFER)malloc(sizeof(NTFS_VOLUME_DATA_BUFFER));
 	//DWORD cbWritten;
-	bool ret = DeviceIoControl(drive.hDisk, FSCTL_LOOKUP_STREAM_FROM_CLUSTER, &inpStruct, (sizeof(DWORD) * 2 + sizeof(LARGE_INTEGER) + sizeof(LOOKUP_STREAM_FROM_CLUSTER_INPUT)), &str1, sizeof(LOOKUP_STREAM_FROM_CLUSTER_OUTPUT), &cbWritten, NULL);
+	/*bool ret = DeviceIoControl(drive.hDisk, FSCTL_LOOKUP_STREAM_FROM_CLUSTER, &inpStruct, (sizeof(DWORD) * 2 + sizeof(LARGE_INTEGER) + sizeof(LOOKUP_STREAM_FROM_CLUSTER_INPUT)), &str1, sizeof(LOOKUP_STREAM_FROM_CLUSTER_OUTPUT), &cbWritten, NULL);
 	if (!ret){
 		cout <<"\nERROR: "<< GetLastError() << endl << sizeof(LOOKUP_STREAM_FROM_CLUSTER_INPUT);
 		for (int i = 0; i < inpStruct.NumberOfClusters; i++){
@@ -146,7 +148,7 @@ void readVolumeMap(Disk drive){
 		}
 
 
-	}
+	}*/
 	info = (PNTFS_VOLUME_DATA_BUFFER)malloc(sizeof(NTFS_VOLUME_DATA_BUFFER));
 	if (!DeviceIoControl(drive.hDisk, FSCTL_GET_NTFS_VOLUME_DATA, NULL, 0,
 		info, sizeof(NTFS_VOLUME_DATA_BUFFER), &cbWritten, NULL)){
@@ -378,6 +380,7 @@ DWORD WINAPI doSomething(LPVOID point){
 
 wstring nextFile(){
 	wstring temp;
+	int i = 0;
 	WaitForSingleObject(hEvent1, INFINITE);
 	if (!threadWorking){
 		CloseHandle(hEvent1);
@@ -409,5 +412,125 @@ bool beginThread(Disk drive){
 	threadWorking = true;
 	return true;
 
+}
+void AnalyzeDisk(Disk drive){
+	wstring pathToFile;
+	FILE_INFO *FI;
+	string name;
+	cout << "File Analize: " << endl;
+	beginThread(drive);
+	while (1){
+		pathToFile = nextFile();
+		if (pathToFile == L""){
+			return;
+		}
+		string name(pathToFile.begin(), pathToFile.end());
+		cout << "File: " << name << " Extents: " ;
+		FI = checkFileClusters(pathToFile.c_str());
+		cout << FI->buffer->ExtentCount << endl;
+		free(FI);
+	}
+	return;
+}
+
+unsigned long long int searchFreeSpaceBefore(PVOLUME_BITMAP_BUFFER vbb, unsigned long long int lcn){
+	unsigned long long int freeSpaceLength = 0;
+	unsigned long long j = lcn - 1;
+	unsigned long long int limit = vbb->BitmapSize.QuadPart*0.2;
+	while (vbb->Buffer[j] == 0&&j!=0){
+		freeSpaceLength++;
+		j--;
+	}
+	return freeSpaceLength;
+}
+
+int moveFileCluster(unsigned long long int start, HANDLE hFile, HANDLE hDisk, unsigned long long int vcn){
+	MOVE_FILE_DATA movData;
+	DWORD cbWritten;
+	movData.ClusterCount = 1;
+	movData.FileHandle = hFile;
+	movData.StartingLcn.QuadPart = start;
+	movData.StartingVcn.QuadPart = vcn;
+	bool result = DeviceIoControl(hDisk, FSCTL_MOVE_FILE, &movData, sizeof(movData), NULL, 0, &cbWritten, NULL);
+	if (!result){
+		return 5;
+	}
+	else
+		return 0;
+	
+}
+
+int GetOffsetInSectors(BYTE buffer){
+	int offset = 0;
+	int array[8];
+	for (int i = 0; i < 8; i++){
+		array[i] = buffer % 2;
+		buffer /= 2;
+	}
+	for (int i = 7; i >= 0; i--){
+		if (array[i] == 0){
+			offset++;
+		}
+	}
+	return offset;
+}
+
+void leftShift(FILE_INFO *fi, PVOLUME_BITMAP_BUFFER VBB, Disk drive){
+	unsigned long long int extentLength;
+	FILE_INFO *FI;
+	unsigned long long int prevVcn = fi->buffer->StartingVcn.QuadPart;
+	unsigned long long int lcn;
+	unsigned long long int count = 0;
+	unsigned long long int freeSpaceLength;
+	int offset;
+	unsigned long long int vcnNumber = fi->buffer->StartingVcn.QuadPart;
+	for (unsigned long long int i = 0; i < fi->buffer->ExtentCount; i++){
+		metka:
+		lcn = fi->buffer->Extents[i].Lcn.QuadPart;
+		extentLength = fi->buffer->Extents[i].NextVcn.QuadPart - prevVcn;
+		prevVcn = fi->buffer->Extents[i].NextVcn.QuadPart;
+		count = 0;
+		if (freeSpaceLength = searchFreeSpaceBefore(VBB, lcn)){
+			while (extentLength!=0){
+				/*FI = checkFileClusters(L"F:\\ideaIC-14.0.3.exe");
+				for (int k = 0; k < FI->buffer->ExtentCount; k++){
+					cout << FI->buffer->Extents[k].Lcn.QuadPart << endl;
+				}
+				cout << "*--------------------------------------------"<<endl;*/
+				while (moveFileCluster(((lcn - freeSpaceLength + count)), fi->hFile, drive.hDisk, vcnNumber)==5){
+					count++;
+					if (count == freeSpaceLength){
+						i++;
+						goto metka;
+					}
+				}
+				/*FI = checkFileClusters(L"F:\\ideaIC-14.0.3.exe");
+				for (int k = 0; k < FI->buffer->ExtentCount; k++){
+					cout << FI->buffer->Extents[k].Lcn.QuadPart << endl;
+				}*/
+				extentLength--;
+				vcnNumber++;
+				count++;
+			}	
+		}
+		vcnNumber = fi->buffer->Extents[i].NextVcn.QuadPart;
+		free(VBB);
+		VBB = Get_Volume_BitMap(drive);
+	}
+}
+
+void SealedFilesOnDisk(Disk drive, PVOLUME_BITMAP_BUFFER VBB){
+	wstring pathToFile;
+	MOVE_FILE_DATA ff;
+	FILE_INFO *FI;
+	beginThread(drive);
+	while (1){
+		pathToFile = nextFile();
+		if (pathToFile == L""){
+			break;
+		}
+		FI = checkFileClusters(pathToFile.c_str());
+		leftShift(FI, VBB, drive);
+	}
 }
 
