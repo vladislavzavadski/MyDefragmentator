@@ -129,15 +129,6 @@ int DefragmentateFile(HANDLE hFile, PRETRIEVAL_POINTERS_BUFFER buffer, PVOLUME_B
 	unsigned long long int i = buffer->Extents[1].NextVcn.QuadPart;
 	fullClustersCount = GetFullClustersCount(buffer);
 	movFileStruct.StartingLcn = GetStartLcn(fullClustersCount, vbb);
-	//movFileStruct.StartingLcn.QuadPart = 3908344;
-
-	/*unsigned long long int l=vbb->Buffer[206072];
-	l = vbb->Buffer[25759];
-	for (unsigned long long int i = 7396; i < 56358; i++){
-		if (vbb->Buffer[i] != 0){
-			cout << endl << vbb->Buffer[i];
-		}
-	}*/
 	if (movFileStruct.StartingLcn.QuadPart == -1){
 
 		return -1;

@@ -10,7 +10,6 @@
 using namespace std;
 using namespace stdext;
 using namespace cvt;
-
 USN maxusn;
 int count11 = 0;
 bool threadWorking;
@@ -25,12 +24,6 @@ DWORD input_Structure;
 HANDLE hEvent1, hEvent2;
 DWORD WINAPI processFile(LPVOID point){
  	FILE_INFO *fi;
-	/*hFile = CreateFile(pathToFile.c_str(), FILE_READ_DATA | FILE_WRITE_DATA | FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
-	if (hFile == NULL || hFile == INVALID_HANDLE_VALUE){
-		return 0;
-	}
-	
-	return 0;*/
 	fi = checkFileClusters(pathToProcess.c_str());
 	if (!fi){
 		count11++;
@@ -131,7 +124,6 @@ void readVolumeMap(Disk drive){
 	LOOKUP_STREAM_FROM_CLUSTER_INPUT inpStruct;
 	LOOKUP_STREAM_FROM_CLUSTER_ENTRY str;
 	LOOKUP_STREAM_FROM_CLUSTER_OUTPUT str1;
-//	PNTFS_VOLUME_DATA_BUFFER info;
 	PLARGE_INTEGER INT = (PLARGE_INTEGER)malloc(sizeof(LARGE_INTEGER));
 	DWORD cbWritten;
 	int size = (sizeof(DWORD) * 2 + sizeof(LARGE_INTEGER));
@@ -139,16 +131,6 @@ void readVolumeMap(Disk drive){
 	inpStruct.Cluster[0].QuadPart = 26585528;
 
 	info = (PNTFS_VOLUME_DATA_BUFFER)malloc(sizeof(NTFS_VOLUME_DATA_BUFFER));
-	//DWORD cbWritten;
-	/*bool ret = DeviceIoControl(drive.hDisk, FSCTL_LOOKUP_STREAM_FROM_CLUSTER, &inpStruct, (sizeof(DWORD) * 2 + sizeof(LARGE_INTEGER) + sizeof(LOOKUP_STREAM_FROM_CLUSTER_INPUT)), &str1, sizeof(LOOKUP_STREAM_FROM_CLUSTER_OUTPUT), &cbWritten, NULL);
-	if (!ret){
-		cout <<"\nERROR: "<< GetLastError() << endl << sizeof(LOOKUP_STREAM_FROM_CLUSTER_INPUT);
-		for (int i = 0; i < inpStruct.NumberOfClusters; i++){
-			printf("%lli\n", inpStruct.Cluster[i]);
-		}
-
-
-	}*/
 	info = (PNTFS_VOLUME_DATA_BUFFER)malloc(sizeof(NTFS_VOLUME_DATA_BUFFER));
 	if (!DeviceIoControl(drive.hDisk, FSCTL_GET_NTFS_VOLUME_DATA, NULL, 0,
 		info, sizeof(NTFS_VOLUME_DATA_BUFFER), &cbWritten, NULL)){
@@ -183,8 +165,6 @@ PVOLUME_BITMAP_BUFFER Get_Volume_BitMap(Disk drive){
 		ret = DeviceIoControl(drive.hDisk, FSCTL_GET_VOLUME_BITMAP, &InBuf, sizeof(InBuf),
 			pOutBuf, nOutSize, &pBytes, NULL);
 		if (ret){
-			printf("%lli\n", pOutBuf->StartingLcn);
-			printf("%lli\n", pOutBuf->BitmapSize);
 			return pOutBuf;
 		}
 
@@ -271,20 +251,9 @@ void record_file_name(USN_RECORD *record){
 	VirtualFree(buffer, 0, MEM_RELEASE);
 }
 
-/*bool searchFileClusters(){
-	hFile = CreateFile(pathToFile.c_str(), FILE_READ_DATA | FILE_WRITE_DATA | FILE_APPEND_DATA, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, NULL, OPEN_EXISTING, FILE_FLAG_BACKUP_SEMANTICS, NULL);
-	if (hFile == NULL || hFile == INVALID_HANDLE_VALUE){
-		//cout << GetLastError();
-		return false;
-		
-	}
-	return true;
-
-}*/
 
 DWORD WINAPI doSomething(LPVOID point){
 	MFT_ENUM_DATA mft_enum_data;
-	//	pathToFile = drive.Letter;
 	pathToFile = L"";
 	DWORD bytecount = 1;
 	void * buffer;
@@ -340,6 +309,7 @@ DWORD WINAPI doSomething(LPVOID point){
 
 			pathToFile = letter + pathToFile;
 			threadWorking = false;
+			SetEvent(hEvent1);
 			return 0;
 		}
 
@@ -357,14 +327,6 @@ DWORD WINAPI doSomething(LPVOID point){
 			if (record->FileName[0] != L'$'&&!IsDirectory(record->FileAttributes)){
 				record_file_name(record);
 				pathToFile = letter + pathToFile;
-
-				/*if (flag){
-				WaitForSingleObject(hThread, INFINITE);
-				CloseHandle(hThread);
-				}
-				pathToProcess = pathToFile;
-				hThread = CreateThread(NULL, 0, processFile, NULL, 0, &inputStruct);
-				flag = true;*/
 				pathToProcess = pathToFile;
 				SetEvent(hEvent1);
 				WaitForSingleObject(hEvent2, INFINITE);
@@ -460,24 +422,9 @@ int moveFileCluster(unsigned long long int start, HANDLE hFile, HANDLE hDisk, un
 	
 }
 
-int GetOffsetInSectors(BYTE buffer){
-	int offset = 0;
-	int array[8];
-	for (int i = 0; i < 8; i++){
-		array[i] = buffer % 2;
-		buffer /= 2;
-	}
-	for (int i = 7; i >= 0; i--){
-		if (array[i] == 0){
-			offset++;
-		}
-	}
-	return offset;
-}
 
 void leftShift(FILE_INFO *fi, PVOLUME_BITMAP_BUFFER VBB, Disk drive){
 	unsigned long long int extentLength;
-	FILE_INFO *FI;
 	unsigned long long int prevVcn = fi->buffer->StartingVcn.QuadPart;
 	unsigned long long int lcn;
 	unsigned long long int count = 0;
@@ -492,11 +439,6 @@ void leftShift(FILE_INFO *fi, PVOLUME_BITMAP_BUFFER VBB, Disk drive){
 		count = 0;
 		if (freeSpaceLength = searchFreeSpaceBefore(VBB, lcn)){
 			while (extentLength!=0){
-				/*FI = checkFileClusters(L"F:\\ideaIC-14.0.3.exe");
-				for (int k = 0; k < FI->buffer->ExtentCount; k++){
-					cout << FI->buffer->Extents[k].Lcn.QuadPart << endl;
-				}
-				cout << "*--------------------------------------------"<<endl;*/
 				while (moveFileCluster(((lcn - freeSpaceLength + count)), fi->hFile, drive.hDisk, vcnNumber)==5){
 					count++;
 					if (count == freeSpaceLength){
@@ -504,10 +446,6 @@ void leftShift(FILE_INFO *fi, PVOLUME_BITMAP_BUFFER VBB, Disk drive){
 						goto metka;
 					}
 				}
-				/*FI = checkFileClusters(L"F:\\ideaIC-14.0.3.exe");
-				for (int k = 0; k < FI->buffer->ExtentCount; k++){
-					cout << FI->buffer->Extents[k].Lcn.QuadPart << endl;
-				}*/
 				extentLength--;
 				vcnNumber++;
 				count++;
@@ -519,18 +457,61 @@ void leftShift(FILE_INFO *fi, PVOLUME_BITMAP_BUFFER VBB, Disk drive){
 	}
 }
 
+void leftShift(HANDLE hFile, RETRIEVAL_POINTERS_BUFFER buffer, PVOLUME_BITMAP_BUFFER VBB, Disk drive){
+	unsigned long long int extentLength;
+	unsigned long long int prevVcn = buffer.StartingVcn.QuadPart;
+	unsigned long long int lcn;
+	unsigned long long int count = 0;
+	unsigned long long int freeSpaceLength;
+	int offset;
+	unsigned long long int vcnNumber = buffer.StartingVcn.QuadPart;
+	for (unsigned long long int i = 0; i < buffer.ExtentCount; i++){
+	metka:
+		lcn = buffer.Extents[i].Lcn.QuadPart;
+		extentLength = buffer.Extents[i].NextVcn.QuadPart - prevVcn;
+		prevVcn = buffer.Extents[i].NextVcn.QuadPart;
+		count = 0;
+		if (freeSpaceLength = searchFreeSpaceBefore(VBB, lcn)){
+			while (extentLength != 0){
+				while (moveFileCluster(((lcn - freeSpaceLength + count)), hFile, drive.hDisk, vcnNumber) == 5){
+					count++;
+					if (count == freeSpaceLength){
+						i++;
+						goto metka;
+					}
+				}
+				extentLength--;
+				vcnNumber++;
+				count++;
+			}
+		}
+		vcnNumber = buffer.Extents[i].NextVcn.QuadPart;
+		free(VBB);
+		VBB = Get_Volume_BitMap(drive);
+	}
+}
+
 void SealedFilesOnDisk(Disk drive, PVOLUME_BITMAP_BUFFER VBB){
 	wstring pathToFile;
 	MOVE_FILE_DATA ff;
-	FILE_INFO *FI;
+	FILE_INFO *FI = NULL;
 	beginThread(drive);
+	
 	while (1){
 		pathToFile = nextFile();
 		if (pathToFile == L""){
 			break;
 		}
+		free(FI);
 		FI = checkFileClusters(pathToFile.c_str());
-		leftShift(FI, VBB, drive);
+		if (FI->buffer->ExtentCount == 1){
+			leftShift(FI->hFile, *FI->buffer, VBB, drive);
+		}
+		else{
+			leftShift(FI, VBB, drive);
+		}
+		free(VBB);
+		VBB = Get_Volume_BitMap(drive);
 	}
 }
 

@@ -3,6 +3,7 @@
 #include <conio.h>
 #include "CheckUser.h"
 #include <stack>
+#include <dos.h>
 //#include "Sealed.h"
 #define NO_SUITABLE_AREA -1
 //#include "AnalizeFile.h"
@@ -80,8 +81,19 @@ int main(){
 		fflush(stdin);
 		choice2 = _getch();
 		if (choice2 == '1'){
-//			AnalyzeDisk(allDisks[choice - '0' - 1]);
+			char timeStr[9];
+			_strtime(timeStr);
+			cout << "\nStarting disk analysis..."<<timeStr<< endl;
+			AnalyzeDisk(allDisks[choice - '0' - 1]);
+			_strtime(timeStr);
+			cout << "End disk analysis..." << timeStr << endl;
+			_strtime(timeStr);
+			cout << "Starting file sealed..."<< timeStr << endl;
 			SealedFilesOnDisk(allDisks[choice - '0' - 1], Get_Volume_BitMap(allDisks[choice-'0'-1]));
+			_strtime(timeStr);
+			cout << "End file sealed..." << timeStr << endl;
+			_strtime(timeStr);
+			cout << "Starting defragmentation " << timeStr << endl;
 			if (!beginThread(allDisks[choice - '0' - 1])){
 				cout << "Undefined Error" << endl;
 				system("pause");
@@ -89,9 +101,14 @@ int main(){
 			}
 			while (1){
 			VBB = Get_Volume_BitMap(allDisks[choice - '0' - 1]);
+			if (!VBB){
+				cout << "Error with reading volume map code:  " << GetLastError() << endl;
+				break;
+			}
 			path = nextFile();
 			if (path == L"")
 				break;
+			wcout << "\nDefragment file: " << path.c_str() << endl;
 			FI = checkFileClusters(path.c_str());
 			if (!FI){
 				cout << "Error with file opening" << endl;
@@ -107,11 +124,33 @@ int main(){
 			CloseHandle(FI->hFile);
 			free(FI);
 			}
+			SealedFilesOnDisk(allDisks[choice - '0' - 1], Get_Volume_BitMap(allDisks[choice - '0' - 1]));
+			if (!st.empty()){
+				while (!st.empty()){
+					wstring temp = st.top();
+					FI = checkFileClusters(path.c_str());
+					if (!FI){
+						cout << "Error with file opening" << endl;
+						system("pause");
+						break;
+					}
+					if (FI->buffer->ExtentCount != 1 && FI->buffer->ExtentCount != 0){
+						DefragmentateFile(FI->hFile, FI->buffer, VBB, allDisks[choice - '0' - 1]);
+							
+						
+					}
+				}
+			}
+			_strtime(timeStr);
+			cout << "\nEnd defragmentation..." << timeStr << endl;
+			_strtime(timeStr);
+			cout << "\nStarting disk analysis..." << timeStr << endl;
 			AnalyzeDisk(allDisks[choice - '0' - 1]);
+			_strtime(timeStr);
+			cout << "End disk analysis..." << timeStr << endl;
 		}
 		if(choice2 == '2'){
 			readVolumeMap(allDisks[choice - '0' - 1]);
-			//enumUSNData(allDisks[1]);
 		}
 		
 	}
